@@ -30,8 +30,6 @@ N_reject = 2_000_000
 pip install -r requirements.txt
 ```
 
-The `integrate` module (`integrate_module ≥ 0.9`) is a custom GEUS package for GA-AEM forward modelling, prior construction, and rejection sampling. It is not available via pip — contact the authors for access.
-
 ## Scripts
 
 | Script | Description |
