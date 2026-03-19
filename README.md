@@ -10,7 +10,7 @@ This repository demonstrates how a neural network (the *General NN*) trained on 
 
 ## Quick start
 
-**Start here:** [`nn_ttem_inversion.py`](nn_ttem_inversion.py) — the primary companion script to the paper. It runs cell-by-cell in VS Code or Spyder and follows the paper's two-stage workflow:
+**Start here:** [`nn_ttem.py`](nn_ttem.py) — the primary companion script to the paper. It runs cell-by-cell in VS Code or Spyder and follows the paper's two-stage workflow:
 
 - **Stage A** — Construct the general prior, compute GA-AEM forward responses, and train the General NN.
 - **Stage B** — Load the pre-trained General NN, replace GA-AEM responses in the informed Daugaard prior with NN predictions, and run probabilistic inversion using the extended rejection sampler.
@@ -34,14 +34,14 @@ pip install -r requirements.txt
 
 | Script | Description |
 |--------|-------------|
-| [`nn_ttem_inversion.py`](nn_ttem_inversion.py) | Primary companion script — trains the General NN and runs inversion (paper workflow) |
+| [`nn_ttem.py`](nn_ttem.py) | Primary companion script — trains the General NN and runs inversion (paper workflow) |
 | [`Train_NN_and_invert_full_GEUS_paper_github.py`](Train_NN_and_invert_full_GEUS_paper_github.py) | Full pipeline with N = 2 000 000 |
 | [`Geus relative plots_github.py`](<Geus relative plots_github.py>) | Training stability experiments (Fig. 1a in paper) |
 | [`Single_forward_comparition_test_github.py`](Single_forward_comparition_test_github.py) | Sequential NN vs GA-AEM speed benchmark |
 
 ## Pre-trained model
 
-A pre-trained General NN is provided in `trained models/model_big_prior_DG_HL_3_HU_300_CN_0.5_PV_200.h5`. To use it, proceed directly to Section C of `nn_ttem_inversion.py`.
+A pre-trained General NN is provided in `trained models/model_big_prior_DG_HL_3_HU_300_CN_0.5_PV_200.h5`. To use it, proceed directly to Section C of `nn_ttem.py`.
 
 ## Data
 
