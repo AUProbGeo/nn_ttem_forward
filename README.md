@@ -30,31 +30,15 @@ N_reject = 2_000_000
 pip install -r requirements.txt
 ```
 
-## Scripts
-
-| Script | Description |
-|--------|-------------|
-| [`nn_ttem.py`](nn_ttem.py) | Primary companion script — trains the General NN and runs inversion (paper workflow) |
-| [`Train_NN_and_invert_full_GEUS_paper_github.py`](Train_NN_and_invert_full_GEUS_paper_github.py) | Full pipeline with N = 2 000 000 |
-| [`Geus relative plots_github.py`](<Geus relative plots_github.py>) | Training stability experiments (Fig. 1a in paper) |
-| [`Single_forward_comparition_test_github.py`](Single_forward_comparition_test_github.py) | Sequential NN vs GA-AEM speed benchmark |
-
 ## Pre-trained model
 
-A pre-trained General NN is provided in `trained models/model_big_prior_DG_HL_3_HU_300_CN_0.5_PV_200.h5`. To use it, proceed directly to Section C of `nn_ttem.py`.
-
-## Data
-
-- `DAUGAARD_AVG.h5` — observed tTEM data from the Daugaard survey
-- `PRIOR_UNIFORM_NL_1-9_log-uniform_N2000000_*.h5` — pre-computed general prior (2M realizations)
-- `daugaard_valley_prior_N2000000.h5` — informed Daugaard prior (used for generalisation evaluation and inversion)
-- `inversion_data/` — saved posterior files from previous inversions
+A pre-trained General NN is provided in [`trained_models/model_big_prior_DG_HL_3_HU_300_CN_0.5_PV_200.h5`](trained_models/model_big_prior_DG_HL_3_HU_300_CN_0.5_PV_200.h5). Set `use_pretrained_model = True` at the top of `nn_ttem.py` to skip training and proceed directly to Section C.
 
 ## Directory structure
 
 ```
-trained models/     Pre-trained General NN weights
-inversion_data/     Saved posterior HDF5 files
-plots/              Output figures
-stability_of_training/  Saved weights from repeated training runs
+nn_ttem.py          Primary companion script
+lib/                Helper modules (NN training, error analysis, plotting)
+trained_models/     Pre-trained General NN weights
+requirements.txt    Python dependencies
 ```
