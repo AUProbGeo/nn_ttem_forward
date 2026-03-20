@@ -12,14 +12,17 @@
 #   the extended rejection sampler, and visualise the posterior.
 #
 # The script is designed to run cell-by-cell in VS Code or Spyder.
-# Set N_use and N_inv to 2 000 000 for the full-scale results reported in the paper.
-# The default values of 2 000 are provided for quick testing.
+# Set N_use and N_inv to 2_000_000 for the full-scale results reported in the paper.
+# The default values of 50_000 are provided for quick testing.
 
 # %% Imports
 import gc
 import datetime
 import os
+import sys
 import time
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib'))
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -55,6 +58,15 @@ N_use    = 2_000_000  # Realizations loaded from the general prior for training 
 N_inv    = 2_000_000  # Realizations loaded from the Informed Daugaard prior for evaluation (Section B)
 N_reject = 2_000_000  # Realizations used by the extended rejection sampler (Section D)
 
+N_prior  = 10_000  # Realizations to generate when building a new general prior (Section A1)
+N_use    = 10_000  # Realizations loaded from the general prior for training (Section B)
+N_inv    = 10_000  # Realizations loaded from the Informed Daugaard prior for evaluation (Section B)
+N_reject = 10_000  # Realizations used by the extended rejection sampler (Section D)
+
+
+use_pretrained_model = False # Set to True to load a pre-trained General NN and skip training (Section C1)
+
+
 # %% [markdown]
 # ---
 # ## Stage A: Training the General NN
@@ -73,22 +85,26 @@ N_reject = 2_000_000  # Realizations used by the extended rejection sampler (Sec
 # - **Informed Daugaard prior** (`f_prior_data_h5`): a geologically informed prior derived
 #   from borehole data at the Daugaard site. Used to evaluate generalisation of the General NN.
 
-# %%
-case = 'DAUGAARD'
+# %% Get the data files for the selected case
+print('Loading data from Daugaard case...')
+showInfo =-1
+files = ig.get_case_data(case='DAUGAARD', showInfo=showInfo)
+f_data_h5 = files[0]
+file_gex= ig.get_gex_file_from_data(f_data_h5)
 
-if case == 'DAUGAARD':
-    f_data_h5 = 'DAUGAARD_AVG.h5'
-    file_gex = ig.get_gex_file_from_data(f_data_h5)
+# General prior: broad, geologically unconstrained — used for training the General NN
+f_prior_data_general_h5 = ig.get_case_data(case='DAUGAARD', filelist=['nn_ttem_forward/PRIOR_UNIFORM_NL_1-9_log-uniform_N2000000_TX07_20231016_2x4_RC20-33_Nh280_Nf12.h5'], showInfo=showInfo)[0]
+# Informed Daugaard prior: geologically informed prior — used to evaluate generalisation
+f_prior_data_valley_h5 = ig.get_case_data(case='DAUGAARD', filelist=['nn_ttem_forward/daugaard_valley_prior_N2000000.h5'], showInfo=showInfo)[0]
+f_prior_data_standard_h5 = ig.get_case_data(case='DAUGAARD', filelist=['nn_ttem_forward/daugaard_standard_prior_N2000000.h5'], showInfo=showInfo)[0]
 
-    # General prior: broad, geologically unconstrained — used for training the General NN
-    f_prior_data_general_h5 = 'PRIOR_UNIFORM_NL_1-9_log-uniform_N2000000_TX07_20231016_2x4_RC20-33_Nh280_Nf12.h5'
-
-    # Informed Daugaard prior: geologically informed prior — used to evaluate generalisation
-    f_prior_data_h5 = 'daugaard_valley_prior_N2000000.h5'
-
-print('Case: %s' % case)
+# Select which prior to use for evaluation of the General NN generalisation performance
+f_prior_data_h5 = 'daugaard_valley_prior_N2000000.h5'
+    
 print('Observed data file: %s' % f_data_h5)
 print('GEX file: %s' % file_gex)
+print('General prior file: %s' % f_prior_data_general_h5)
+print('Informed Daugaard prior file: %s' % f_prior_data_h5)
 
 # %% [markdown]
 # ### A1. Construct the general prior and compute tTEM forward responses
@@ -174,7 +190,7 @@ batch_size = 4096            # Mini-batch size
 nunits = 300                 # Units per hidden layer
 nhidden = 3                  # Number of hidden layers
 activation_function = 'relu' # Hidden layer activation function
-epochs = 20                  # Maximum number of training epochs (set to 2500 for full training)
+epochs = 2000                  # Maximum number of training epochs (set to 2500 for full training)
 clipnorm_value = 0.5         # Gradient clipping norm
 
 use_early_stopping = True    # Stop training when validation loss stops improving
@@ -184,7 +200,7 @@ patience_value = 200         # Number of epochs without improvement before stopp
 # Train the General NN and evaluate on the held-out test set from the general prior.
 
 # %%
-model, results, D_pred, plots_dir, log_dir = train_model(
+model, results, D_pred, plots_dir, log_dir, model_h5 = train_model(
     prior_name, prefix, learning_rate, batch_size, nunits, nhidden,
     activation_function, epochs, clipnorm_value, Nm, Nd,
     M_train, D_train, M_val, D_val, M_test, D_test,
@@ -193,12 +209,6 @@ model, results, D_pred, plots_dir, log_dir = train_model(
 
 # Retrieve the best validation loss achieved during training
 best_val_loss = results['val_loss']
-
-# %%
-# Save the trained model to the log directory
-timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-model_save_path = os.path.join(log_dir, f'model_{prior_name}_{type_model}_{timestamp}.h5')
-model.save(model_save_path)
 
 # %% [markdown]
 # ### B2. Evaluate accuracy of the General NN
@@ -241,15 +251,14 @@ metrics_on_informed_prior = analyze_errors(
 # The model path should point to the saved `.h5` file.
 
 # %%
-# Path to a pre-trained General NN
-model_path = os.path.join('trained models', 'model_big_prior_DG_HL_3_HU_300_CN_0.5_PV_200.h5')
-
-prefix = 'TEST'
-
+# Load the trained General NN and evaluate on the general prior test set
+use_pretrained_model = False
+if use_pretrained_model:
+    # Set the path to the pre-trained model .h5 file
+    model_h5 = os.path.join('trained_models', 'model_big_prior_DG_HL_3_HU_300_CN_0.5_PV_200.h5')
 # %%
-# Load the pre-trained General NN and evaluate on the general prior test set
 model, D_pred, best_val_loss, plots_dir = load_model_and_predict(
-    model_path, M_test, D_test, make_dir=True,
+    model_h5, M_test, D_test, make_dir=True,
     prefix=prefix, prior_name=prior_name,
     other_prior_name=other_prior_name, make_plots=False)
 
@@ -258,6 +267,27 @@ check_other_prior(
     prior_name, other_prior_name, model,
     M_test_detailed, D_test_detailed,
     plots_dir, best_val_loss, make_plots=True)
+
+
+# %% [markdown]
+## compare loss. here we compare the loss on the traininhg, validation and bloned test data as well as the loss when applied to the informed prior
+
+# %%
+# Evaluate NN on all data splits and compare to reference forward data
+splits = [
+    ('TRAINING',             M_train,         D_train),
+    ('BLIND (val)',          M_val,            D_val),
+    ('TEST (general prior)', M_test,           D_test),
+    ('INFORMED (Daugaard)',  M_test_detailed,  D_test_detailed),
+]
+
+rows = []
+for name, M, D in splits:
+    loss = model.evaluate(M, D, batch_size=100000, verbose=0)
+    rows.append({'Split': name, 'MSE (log-space)': loss})
+
+table = pd.DataFrame(rows)
+print(table)
 
 # %% [markdown]
 # ### C2. Benchmark forward computation speed
@@ -327,15 +357,6 @@ f_prior_data_h5_org, f_prior_data_h5_nn, D_new, D_org = process_prior_with_nn(
     f_prior_data_h5, model, f_data_h5,
     batch_size=100000, verbose=1, plot_results=True)
 
-# %%
-# Sanity check: confirm that prior models are identical and only forward responses differ
-with h5py.File(f_prior_data_h5_org, 'r') as f:
-    M_org = f['M1'][:, ::1]
-    D_org = f['D1'][:, ::1]
-
-with h5py.File(f_prior_data_h5_nn, 'r') as f:
-    M_nn = f['M1'][:, ::1]
-    D_nn = f['D1'][:, ::1]
 
 # %%
 # Reference inversion: Informed Daugaard prior with GA-AEM forward responses
@@ -346,15 +367,6 @@ f_post_h5_org = ig.integrate_rejection(
 # General NN inversion: Informed Daugaard prior with NN-predicted forward responses
 f_post_h5_nn = ig.integrate_rejection(
     f_prior_data_h5_nn, f_data_h5, N_use=N_reject, parallel=parallel, showInfo=1)
-
-# %%
-# Quick posterior plots
-print(f'Reference inversion posterior: {f_post_h5_org}')
-ig.plot_profile(f_post_h5_org, i1=0, i2=100, im=1)
-
-# %%
-print(f'General NN inversion posterior: {f_post_h5_nn}')
-ig.plot_profile(f_post_h5_nn, i1=0, i2=100, im=1)
 
 # %%
 # Save posteriors to the inversion_data directory
@@ -371,13 +383,7 @@ save_post_results(f_post_h5_org, f'Informed_Daugaard_reference_{timestamp}.h5')
 # Saved posterior files can be loaded from the `inversion_data` directory and plotted
 # without repeating the inversion step.
 
-# %%
-data_folder = 'inversion_data'
-filename = 'Daugaard_valley_nn_nr=1000_20260302_182845_Version_Geus.h5'
-
-f_post_h5_loaded = os.path.join(data_folder, filename)
-print(f'Plotting posterior: {f_post_h5_loaded}')
-ig.plot_profile(f_post_h5_loaded, i1=100, i2=250, im=1)
+## REMOVED
 
 # %% [markdown]
 # ### F. Plot the posterior along a profile with survey geometry
@@ -387,9 +393,6 @@ ig.plot_profile(f_post_h5_loaded, i1=100, i2=250, im=1)
 # displayed in the geometry of the Daugaard tTEM survey.
 
 # %%
-data_folder = 'inversion_data'
-filename = 'Daugaard_valley_nn_nr=1000_20260302_182845_Version_Geus.h5'
-f_post_h5_loaded = os.path.join(data_folder, filename)
 
 f_data_h5 = 'DAUGAARD_AVG.h5'
 X, Y, LINE, ELEVATION = ig.get_geometry(f_data_h5)
@@ -404,7 +407,8 @@ id_line, distances, segment_ids = ig.find_points_along_line_segments(X, Y, Xl, Y
 
 # Plot the survey area and highlight the selected profile
 plt.figure(figsize=(10, 6))
-plt.plot(X, Y, 'k.', markersize=10)
+plt.scatter(X, Y, c=ELEVATION, s=10, cmap='viridis')
+plt.colorbar(label='Elevation (m)')
 plt.plot(X[id_line], Y[id_line], 'r.', markersize=8, label='Profile', zorder=2)
 plt.xlabel('Easting (m)')
 plt.ylabel('Northing (m)')
@@ -413,5 +417,27 @@ plt.tight_layout()
 plt.show()
 
 # Plot the posterior along the selected profile
+#print('Plotting posterior along profile')
+#ig.plot_profile(f_post_h5_loaded, ii=id_line, gap_threshold=50, xaxis='y')
+
+# %%
+# Plot the posterior median resistivity along the selected profile
+
 print('Plotting posterior along profile')
-ig.plot_profile(f_post_h5_loaded, ii=id_line, gap_threshold=50, xaxis='y')
+ig.plot_profile_continuous(f_post_h5_org, ii=id_line, gap_threshold=50, xaxis='y', panels=['median'], show_data=True)
+
+print('Plotting posterior along profile')
+ig.plot_profile_continuous(f_post_h5_nn, ii=id_line, gap_threshold=50, xaxis='y', panels=['median'], show_data=True)
+
+
+# %% Plot full profiles
+
+print('Plotting posterior along profile')
+ig.plot_profile(f_post_h5_org, ii=id_line, gap_threshold=50, xaxis='y', show_data=True)
+
+print('Plotting posterior along profile')
+ig.plot_profile(f_post_h5_nn, ii=id_line, gap_threshold=50, xaxis='y', show_data=True)
+
+
+
+# %%
