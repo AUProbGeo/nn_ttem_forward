@@ -65,11 +65,11 @@ N_reject = 10_000  # Realizations used by the extended rejection sampler (Sectio
 
 
 use_pretrained_model = False # Set to True to load a pre-trained General NN and skip training (Section C1)
-
+use_precomputed_prior = False    # Set to True to load a pre-computed general prior and skip sampling and forward computation (Section A1)
 
 # %% [markdown]
 # ---
-# ## Stage A: Training the General NN
+# ## Stage A: Generating the general prior and training the General NN
 #
 # The General NN is trained on a broad, geologically unconstrained general prior.
 # Once trained, it generalises to specific, geologically informed priors without retraining.
@@ -121,21 +121,24 @@ print('Informed Daugaard prior file: %s' % f_prior_data_h5)
 # and skip this section.
 
 # %%
-RHO_min = 1
-RHO_max = 2500
-RHO_dist = 'log-uniform'
-NLAY_min = 1
-NLAY_max = 9
-z_max = 90
 
-print('General prior file: %s' % f_prior_data_general_h5)
+if len(f_prior_data_general_h5) == 0 or not use_precomputed_prior:
 
-if len(f_prior_data_general_h5) == 0:
+    RHO_min = 1
+    RHO_max = 2500
+    RHO_dist = 'log-uniform'
+    NLAY_min = 1
+    NLAY_max = 9
+    z_max = 90
+
     # Sample prior models from the general prior
+    t0 = time.time()
     f_prior_general_h5 = ig.prior_model_layered(
         N=N_prior, lay_dist='uniform', z_max=z_max,
         NLAY_min=NLAY_min, NLAY_max=NLAY_max,
         HO_dist=RHO_dist, RHO_min=RHO_min, RHO_max=RHO_max, showInfo=1)
+    t1 = time.time()
+    print(f'Prior sampling: {N_prior} realizations in {t1 - t0:.2f} s ({N_prior / (t1 - t0):.0f} realizations/s)')
 
     # Compute tTEM forward responses using the GA-AEM solver
     time_start = time.time()
@@ -143,6 +146,8 @@ if len(f_prior_data_general_h5) == 0:
     time_end = time.time()
     print(f'Time to compute forward responses for the general prior: {time_end - time_start:.2f} s')
     print(f'Forward responses per second: {N_prior / (time_end - time_start):.2f}')
+
+print('General prior file: %s' % f_prior_data_general_h5)
 
 # Compare the general prior data space against the observed Daugaard tTEM data
 if len(f_data_h5) > 0:
@@ -170,7 +175,7 @@ M_test_detailed, D_test_detailed, Nm_other, Nd_other = \
     load_data_from_hdf5(f_prior_data_h5, N_inv, training=False)
 
 # Names used for labelling saved models and plots
-prior_name = 'General Daugaard'
+prior_name = 'General prior'
 other_prior_name = 'Informed Daugaard'
 prefix = 'TEST'
 type_model = 'HL_3_HU_300_PV_200.h5'
@@ -179,7 +184,7 @@ type_model = 'HL_3_HU_300_PV_200.h5'
 # ### B1. Set hyperparameters and train the General NN
 #
 # The neural network architecture comprises 90 input nodes (resistivity at 1 m depth intervals),
-# three hidden layers of 300 units each with ReLU activation, and 40 output nodes (tTEM gates).
+# three hidden layers of 300 units each with ReLU activation, and 40 output nodes (data parameters).
 # Training uses the Adam optimizer with a learning rate of 0.0005 and a batch size of 4 096.
 # Early stopping is applied with a patience of 200 epochs to prevent overfitting.
 # Gradient clipping is used to stabilise training.
@@ -200,12 +205,14 @@ patience_value = 200         # Number of epochs without improvement before stopp
 # Train the General NN and evaluate on the held-out test set from the general prior.
 
 # %%
+t0 = time.time()
 model, results, D_pred, plots_dir, log_dir, model_h5 = train_model(
     prior_name, prefix, learning_rate, batch_size, nunits, nhidden,
     activation_function, epochs, clipnorm_value, Nm, Nd,
     M_train, D_train, M_val, D_val, M_test, D_test,
     use_early_stopping, patience_value
 )
+print(f'Training: {time.time() - t0:.1f} s')
 
 # Retrieve the best validation loss achieved during training
 best_val_loss = results['val_loss']
@@ -221,16 +228,20 @@ best_val_loss = results['val_loss']
 # 2. The Informed Daugaard prior (out-of-distribution — the key generalisation test)
 
 # %%
-# Accuracy on the general prior test set (in-distribution)
+# Accuracy on the uninformed test set (in-distribution)
 metrics_from_model = analyze_errors(
     D_test, D_pred, save_dir=False,
     best_val_loss=None, error_threshold=0.05,
-    name_of_test_prior='General prior test set', title=None, make_pdf=False)
+    name_of_test_prior='Uninformed test set', title=None, make_pdf=False)
 
 # %%
 # Accuracy on the Informed Daugaard prior (out-of-distribution)
 # This prior was not used during training and serves as the key generalisation test.
+t0 = time.time()
 D_pred_detailed = model.predict(M_test_detailed, batch_size=100000, verbose=1)
+t1 = time.time()
+print(f'NN prediction: {M_test_detailed.shape[0]} forward evals in {t1 - t0:.2f} s '
+      f'({M_test_detailed.shape[0] / (t1 - t0):.0f} evals/s)')
 metrics_on_informed_prior = analyze_errors(
     D_test_detailed, D_pred_detailed, save_dir=False,
     best_val_loss=None, error_threshold=0.05,
@@ -238,7 +249,7 @@ metrics_on_informed_prior = analyze_errors(
 
 # %% [markdown]
 # ---
-# ## Stage B: Applying the General NN for probabilistic inversion
+# ## Stage B: Generalisation — applying the General NN to an informed prior
 #
 # The trained General NN is used as a drop-in replacement for the GA-AEM solver within the
 # INTEGRATE framework. No retraining is required when applying the General NN to a new,
@@ -270,7 +281,11 @@ check_other_prior(
 
 
 # %% [markdown]
-## compare loss. here we compare the loss on the traininhg, validation and bloned test data as well as the loss when applied to the informed prior
+# ### C1. Compare performance across data splits
+#
+# The trained NN is evaluated on all data splits (training, validation, test, and informed prior)
+# by comparing NN predictions to reference GA-AEM forward responses.
+# Loss is reported as MSE in log₁₀ space, consistent with the training objective.
 
 # %%
 # Evaluate NN on all data splits and compare to reference forward data
@@ -378,15 +393,7 @@ timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 save_post_results(f_post_h5_org, f'Informed_Daugaard_reference_{timestamp}.h5')
 
 # %% [markdown]
-# ### E. Load and plot a previously saved posterior
-#
-# Saved posterior files can be loaded from the `inversion_data` directory and plotted
-# without repeating the inversion step.
-
-## REMOVED
-
-# %% [markdown]
-# ### F. Plot the posterior along a profile with survey geometry
+# ### E. Plot the posterior along a profile with survey geometry
 #
 # The posterior is plotted along a profile defined by two endpoints in UTM coordinates.
 # Sounding locations within a given buffer distance of the profile are selected and
@@ -423,20 +430,21 @@ plt.show()
 # %%
 # Plot the posterior median resistivity along the selected profile
 
-print('Plotting posterior along profile')
+print('Plotting org posterior along profile')
 ig.plot_profile_continuous(f_post_h5_org, ii=id_line, gap_threshold=50, xaxis='y', panels=['median'], show_data=True)
 
-print('Plotting posterior along profile')
+print('Plotting nn posterior along profile')
 ig.plot_profile_continuous(f_post_h5_nn, ii=id_line, gap_threshold=50, xaxis='y', panels=['median'], show_data=True)
 
 
 # %% Plot full profiles
+plot_full_profiles = False
+if plot_full_profiles:
+    print('Plotting full org posterior along profile')
+    ig.plot_profile(f_post_h5_org, ii=id_line, gap_threshold=50, xaxis='y', show_data=True)
 
-print('Plotting posterior along profile')
-ig.plot_profile(f_post_h5_org, ii=id_line, gap_threshold=50, xaxis='y', show_data=True)
-
-print('Plotting posterior along profile')
-ig.plot_profile(f_post_h5_nn, ii=id_line, gap_threshold=50, xaxis='y', show_data=True)
+    print('Plotting full nn posterior along profile')
+    ig.plot_profile(f_post_h5_nn, ii=id_line, gap_threshold=50, xaxis='y', show_data=True)
 
 
 
