@@ -7,7 +7,7 @@
 # - **Stage A** (Sections A–B): Generate a broad, geologically unconstrained general prior,
 #   compute tTEM forward responses using the GA-AEM solver, and train the General NN.
 #
-# - **Stage B** (Sections C–F): Apply the trained General NN as a drop-in forward operator
+# - **Stage B** (Sections C–E): Apply the trained General NN as a drop-in forward operator
 #   for the geologically informed Informed Daugaard prior, run probabilistic inversion using
 #   the extended rejection sampler, and visualise the posterior.
 #
@@ -64,7 +64,7 @@ N_inv    = 100_000  # Realizations loaded from the Informed Daugaard prior for e
 N_reject = 100_000  # Realizations used by the extended rejection sampler (Section D)
 
 
-use_pretrained_model = True # Set to True to load a pre-trained General NN and skip training (Section C1)
+use_pretrained_model = False # Set to True to load a pre-trained General NN and skip training (Section C1)
 use_precomputed_prior = True    # Set to True to load a pre-computed general prior and skip sampling and forward computation (Section A1)
 
 # %% [markdown]
@@ -150,7 +150,7 @@ if len(f_prior_data_general_h5) == 0 or not use_precomputed_prior:
 print('General prior file: %s' % f_prior_data_general_h5)
 
 # %% [markdown]
-# ### B. Load data and train the General NN
+# ### B. Load data for training and evaluation
 #
 # Prior models **M*** and forward responses **D*** are loaded from the HDF5 file and
 # scaled to base-10 logarithm prior to training. Rows containing negative or NaN values
@@ -177,7 +177,7 @@ prefix = 'TEST'
 type_model = 'HL_3_HU_300_PV_200.h5'
 
 # %% [markdown]
-# ### B1. Set hyperparameters and train the General NN
+# ### B1. Train the General NN (or load a pre-trained model)
 #
 # The neural network architecture comprises 90 input nodes (resistivity at 1 m depth intervals),
 # three hidden layers of 300 units each with ReLU activation, and 40 output nodes (data parameters).
@@ -185,33 +185,47 @@ type_model = 'HL_3_HU_300_PV_200.h5'
 # Early stopping is applied with a patience of 200 epochs to prevent overfitting.
 # Gradient clipping is used to stabilise training.
 
-# %%
-learning_rate = 0.0005       # Adam optimizer learning rate
-batch_size = 4096            # Mini-batch size
-nunits = 300                 # Units per hidden layer
-nhidden = 3                  # Number of hidden layers
-activation_function = 'relu' # Hidden layer activation function
-epochs = 2000                  # Maximum number of training epochs (set to 2500 for full training)
-clipnorm_value = 0.5         # Gradient clipping norm
 
-use_early_stopping = True    # Stop training when validation loss stops improving
-patience_value = 200         # Number of epochs without improvement before stopping
-
-# %% [markdown]
-# Train the General NN and evaluate on the held-out test set from the general prior.
+#
+# A pre-trained General NN can be loaded directly to skip the training step above.
+# The model path should point to the saved `.h5` file.
 
 # %%
-t0 = time.time()
-model, results, D_pred, plots_dir, log_dir, model_h5 = train_model(
-    prior_name, prefix, learning_rate, batch_size, nunits, nhidden,
-    activation_function, epochs, clipnorm_value, Nm, Nd,
-    M_train, D_train, M_val, D_val, M_test, D_test,
-    use_early_stopping, patience_value
-)
-print(f'Training: {time.time() - t0:.1f} s')
+# Load the trained General NN and evaluate on the general prior test set
+if use_pretrained_model:
+    # Set the path to the pre-trained model .h5 file
+    model_h5 = os.path.join('trained_models', 'model_big_prior_DG_HL_3_HU_300_CN_0.5_PV_200.h5')
 
-# Retrieve the best validation loss achieved during training
-best_val_loss = results['val_loss']
+    model, D_pred, best_val_loss, plots_dir = load_model_and_predict(
+    model_h5, M_test, D_test, make_dir=True,
+    prefix=prefix, prior_name=prior_name,
+    other_prior_name=other_prior_name, make_plots=False)
+
+else:
+
+    learning_rate = 0.0005       # Adam optimizer learning rate
+    batch_size = 4096            # Mini-batch size
+    nunits = 300                 # Units per hidden layer
+    nhidden = 3                  # Number of hidden layers
+    activation_function = 'relu' # Hidden layer activation function
+    epochs = 2000                  # Maximum number of training epochs (set to 2500 for full training)
+    clipnorm_value = 0.5         # Gradient clipping norm
+
+    use_early_stopping = True    # Stop training when validation loss stops improving
+    patience_value = 200         # Number of epochs without improvement before stopping
+
+    # Train the General NN and evaluate on the held-out test set from the general prior.
+    t0 = time.time()
+    model, results, D_pred, plots_dir, log_dir, model_h5 = train_model(
+        prior_name, prefix, learning_rate, batch_size, nunits, nhidden,
+        activation_function, epochs, clipnorm_value, Nm, Nd,
+        M_train, D_train, M_val, D_val, M_test, D_test,
+        use_early_stopping, patience_value
+    )
+    print(f'Training: {time.time() - t0:.1f} s')
+
+    # Retrieve the best validation loss achieved during training
+    best_val_loss = results['val_loss']
 
 # %% [markdown]
 # ### B2. Evaluate accuracy of the General NN
@@ -252,23 +266,8 @@ metrics_on_informed_prior = analyze_errors(
 # geologically informed prior built on the same tTEM system geometry.
 
 # %% [markdown]
-# ### C. Load a pre-trained General NN and evaluate on the Informed Daugaard prior
-#
-# A pre-trained General NN can be loaded directly to skip the training step above.
-# The model path should point to the saved `.h5` file.
-
+# ### C. Visualise generalisation of the General NN to the Informed Daugaard prior
 # %%
-# Load the trained General NN and evaluate on the general prior test set
-use_pretrained_model = False
-if use_pretrained_model:
-    # Set the path to the pre-trained model .h5 file
-    model_h5 = os.path.join('trained_models', 'model_big_prior_DG_HL_3_HU_300_CN_0.5_PV_200.h5')
-# %%
-model, D_pred, best_val_loss, plots_dir = load_model_and_predict(
-    model_h5, M_test, D_test, make_dir=True,
-    prefix=prefix, prior_name=prior_name,
-    other_prior_name=other_prior_name, make_plots=False)
-
 # Evaluate generalisation to the Informed Daugaard prior
 check_other_prior(
     prior_name, other_prior_name, model,
