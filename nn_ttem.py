@@ -50,7 +50,7 @@ hardcopy = True
 #
 # Set the number of prior realizations for each stage of the workflow.
 # The values below reproduce the full-scale results reported in the paper.
-# To run a quick test, reduce all values to e.g. `2_000`.
+# To run a quick test, reduce all values to e.g. `50_000`.
 
 # %%
 N_prior  = 2_000_000  # Realizations to generate when building a new general prior (Section A1)
@@ -58,11 +58,10 @@ N_use    = 2_000_000  # Realizations loaded from the general prior for training 
 N_inv    = 2_000_000  # Realizations loaded from the Informed Daugaard prior for evaluation (Section B)
 N_reject = 2_000_000  # Realizations used by the extended rejection sampler (Section D)
 
-N_prior  = 100_000  # Realizations to generate when building a new general prior (Section A1)
-N_use    = 100_000  # Realizations loaded from the general prior for training (Section B)
-N_inv    = 100_000  # Realizations loaded from the Informed Daugaard prior for evaluation (Section B)
-N_reject = 100_000  # Realizations used by the extended rejection sampler (Section D)
-
+#N_prior  = 50_000  # Realizations to generate when building a new general prior (Section A1)
+#N_use    = 50_000  # Realizations loaded from the general prior for training (Section B)
+#N_inv    = 50_000  # Realizations loaded from the Informed Daugaard prior for evaluation (Section B)
+#N_reject = 50_000  # Realizations used by the extended rejection sampler (Section D)
 
 use_pretrained_model = False # Set to True to load a pre-trained General NN and skip training (Section C1)
 use_precomputed_prior = True    # Set to True to load a pre-computed general prior and skip sampling and forward computation (Section A1)
