@@ -58,14 +58,14 @@ N_use    = 2_000_000  # Realizations loaded from the general prior for training 
 N_inv    = 2_000_000  # Realizations loaded from the Informed Daugaard prior for evaluation (Section B)
 N_reject = 2_000_000  # Realizations used by the extended rejection sampler (Section D)
 
-N_prior  = 10_000  # Realizations to generate when building a new general prior (Section A1)
-N_use    = 10_000  # Realizations loaded from the general prior for training (Section B)
-N_inv    = 10_000  # Realizations loaded from the Informed Daugaard prior for evaluation (Section B)
-N_reject = 10_000  # Realizations used by the extended rejection sampler (Section D)
+N_prior  = 100_000  # Realizations to generate when building a new general prior (Section A1)
+N_use    = 100_000  # Realizations loaded from the general prior for training (Section B)
+N_inv    = 100_000  # Realizations loaded from the Informed Daugaard prior for evaluation (Section B)
+N_reject = 100_000  # Realizations used by the extended rejection sampler (Section D)
 
 
-use_pretrained_model = False # Set to True to load a pre-trained General NN and skip training (Section C1)
-use_precomputed_prior = False    # Set to True to load a pre-computed general prior and skip sampling and forward computation (Section A1)
+use_pretrained_model = True # Set to True to load a pre-trained General NN and skip training (Section C1)
+use_precomputed_prior = True    # Set to True to load a pre-computed general prior and skip sampling and forward computation (Section A1)
 
 # %% [markdown]
 # ---
@@ -129,7 +129,7 @@ if len(f_prior_data_general_h5) == 0 or not use_precomputed_prior:
     RHO_dist = 'log-uniform'
     NLAY_min = 1
     NLAY_max = 9
-    z_max = 90
+    z_max = 89
 
     # Sample prior models from the general prior
     t0 = time.time()
@@ -148,10 +148,6 @@ if len(f_prior_data_general_h5) == 0 or not use_precomputed_prior:
     print(f'Forward responses per second: {N_prior / (time_end - time_start):.2f}')
 
 print('General prior file: %s' % f_prior_data_general_h5)
-
-# Compare the general prior data space against the observed Daugaard tTEM data
-if len(f_data_h5) > 0:
-    ig.plot_data_prior(f_prior_data_h5, f_data_h5, nr=1000, alpha=1, ylim=[1e-13, 1e-5], hardcopy=hardcopy)
 
 # %% [markdown]
 # ### B. Load data and train the General NN
