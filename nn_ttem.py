@@ -59,7 +59,7 @@ N_use = 2_000_000  # Reals loaded from the general prior for training (B)
 N_inv = 2_000_000  # Reals loaded from the Informed Daugaard prior (B)
 N_reject = 2_000_000  # Reals used by the extended rejection sampler (D)
 
-# N_prior  = 50_000  # Reals to generate when building a general prior (A1)
+# N_prior  = 50_000  # Reals to generatSe when building a general prior (A1)
 # N_use    = 50_000  # Reals loaded from the general prior for training (B)
 # N_inv    = 50_000  # Reals loaded from the Informed Daugaard prior (B)
 # N_reject = 50_000  # Reals used by the extended rejection sampler (D)
@@ -98,19 +98,19 @@ file_gex = ig.get_gex_file_from_data(f_data_h5)
 f_prior_data_general_h5 = ig.get_case_data(
     case="DAUGAARD",
     filelist=[
-        "nn_ttem_forward/PRIOR_UNIFORM_NL_1-9_log-uniform_N2000000_TX07_20231016_2x4_RC20-33_Nh280_Nf12.h5"
+        "PRIOR_UNIFORM_NL_1-9_log-uniform_N2000000_TX07_20231016_2x4_RC20-33_Nh280_Nf12.h5"
     ],
     showInfo=showInfo,
 )[0]
 # Informed Daugaard prior: geologically informed prior — used to evaluate generalisation
 f_prior_data_valley_h5 = ig.get_case_data(
     case="DAUGAARD",
-    filelist=["nn_ttem_forward/daugaard_valley_prior_N2000000.h5"],
+    filelist=["daugaard_valley_prior_N2000000.h5"],
     showInfo=showInfo,
 )[0]
 f_prior_data_standard_h5 = ig.get_case_data(
     case="DAUGAARD",
-    filelist=["nn_ttem_forward/daugaard_standard_prior_N2000000.h5"],
+    filelist=["daugaard_standard_prior_N2000000.h5"],
     showInfo=showInfo,
 )[0]
 
@@ -527,7 +527,7 @@ ig.plot_profile_continuous(
 
 
 # %% Plot full profiles
-plot_full_profiles = False
+plot_full_profiles = False  # Set to True to plot the full posterior along the profile, including uncertainty
 if plot_full_profiles:
     print("Plotting full org posterior along profile")
     ig.plot_profile(
