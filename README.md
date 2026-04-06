@@ -34,11 +34,18 @@ pip install -r requirements.txt
 
 A pre-trained General NN is provided in [`trained_models/model_big_prior_DG_HL_3_HU_300_CN_0.5_PV_200.h5`](trained_models/model_big_prior_DG_HL_3_HU_300_CN_0.5_PV_200.h5). Set `use_pretrained_model = True` at the top of `nn_ttem.py` to skip training and proceed directly to Section C.
 
+## Check NN speed for single predictions
+Use the script [`Single_forward_comparison.py`](Single_forward_comparison.py) 
+Test how fast the trained NN is compared to the GA-AEM function for single predictions.
+You should be able to run the whole script without user input.
+
 ## Directory structure
 
 ```
-nn_ttem.py          Primary companion script
-lib/                Helper modules (NN training, error analysis, plotting)
-trained_models/     Pre-trained General NN weights
-requirements.txt    Python dependencies
+nn_ttem.py                          Primary companion script
+Single_forward_comparison.py        Script to test single forward predictions.
+
+lib/                                Helper modules (NN training, error analysis, plotting)
+trained_models/                     Pre-trained General NN weights
+requirements.txt                    Python dependencies
 ```
