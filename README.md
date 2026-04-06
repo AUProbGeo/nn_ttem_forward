@@ -43,7 +43,7 @@ You should be able to run the whole script without user input.
 
 ```
 nn_ttem.py                          Primary companion script
-Single_forward_comparison.py        Script to test single forward predictions.
+Single_forward_comparison.py        Script to test single forward predictions
 
 lib/                                Helper modules (NN training, error analysis, plotting)
 trained_models/                     Pre-trained General NN weights
