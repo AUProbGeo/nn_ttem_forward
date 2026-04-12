@@ -8,8 +8,9 @@
 #   compute tTEM forward responses using the GA-AEM solver, and train the General NN.
 #
 # - **Stage B** (Sections C–E): Apply the trained General NN as a drop-in forward operator
-#   for the geologically informed Informed Daugaard prior, run probabilistic inversion using
-#   the extended rejection sampler, and visualise the posterior.
+#   for the geologically informed Daugaard standard and Daugaard valley priors,
+#   and run probabilistic inversion using the extended rejection sampler,
+#   and visualise the posterior.
 #
 # The script is designed to run cell-by-cell in VS Code or Spyder.
 # Set N_use and N_inv to 2_000_000 for the full-scale results reported in the paper.
@@ -85,7 +86,9 @@ use_precomputed_prior = True  # Set to True to load a pre-computed general prior
 #   and log-uniform resistivities spanning 1–2500 Ω·m. Used to train the General NN.
 #
 # - **Informed Daugaard prior** (`f_prior_data_h5`): a geologically informed prior derived
-#   from borehole data at the Daugaard site. Used to evaluate generalisation of the General NN.
+#   from borehole data at the Daugaard site.
+#   Two informed Daugaard priors (Daugaard standard and Daugaard valley)
+#   are used to evaluate generalisation of the General NN.
 
 # %% Get the data files for the selected case
 print("Loading data from Daugaard case...")
@@ -116,6 +119,7 @@ f_prior_data_standard_h5 = ig.get_case_data(
 
 # Select which prior to use for evaluation of the General NN generalisation performance
 f_prior_data_h5 = "daugaard_valley_prior_N2000000.h5"
+#f_prior_data_h5 = "daugaard_standard_prior_N2000000.h5"
 
 print("Observed data file: %s" % f_data_h5)
 print("GEX file: %s" % file_gex)
