@@ -39,8 +39,8 @@ if not os.path.exists(model_path):
     raise FileNotFoundError(f"Model not found: {model_path}")
 
 # Test parameters
-Number_of_samples = 10000  # Number of samples to test
-
+Number_of_samples = 1000  # Number of samples to test
+#parallel = ig.use_parallel(showInfo=1) can be toggled on/off to test if parallelization can be used
 
 #%%
 # ============================================================================
@@ -100,7 +100,7 @@ def forward_gaaem_single(M_single, file_gex, f_prior_reference_h5,
         stmfiles=forward_gaaem_single.stmfiles,
         Nhank=Nhank, 
         Nfreq=Nfreq, 
-        parallel=False, 
+        parallel=False,  # It seem to be slighly faster to run with False for single forward runs, but you can test with True if you want.
         showInfo=showInfo
     )
     
@@ -140,27 +140,22 @@ print("\n" + "="*70)
 print("TEST 1: NEURAL NETWORK ONE-AT-A-TIME")
 print("="*70)
 
-# Transform ALL models to log10 space ONCE (outside loop)
-print("Transforming models to log10 space...")
-M_test_log10 = np.log10(M_test_comparison)
-
-print(f"NaN in M_test_log10: {np.isnan(M_test_log10).any()}")
-print(f"Inf in M_test_log10: {np.isinf(M_test_log10).any()}")
-
-# Warm-up run - 10 samples one-at-a-time
+#Warm up run, uses GPU
 print("Warm-up (10 samples)...")
-with tf.device('/CPU:0'):
+with tf.device('/GPU:0'):
     for i in tqdm(range(10), desc="NN warm-up", leave=False, dynamic_ncols=True):
-        _ = model(M_test_log10[i:i+1, :], training=False)
+        #Take the log10 of the model for the NN input
+        M_single_log10 = np.log10(M_test_comparison[i:i+1, :])
+        _ = model(M_single_log10, training=False)
 
 print(f"Starting NN timing test with {Number_of_samples} samples...")
-start_time = datetime.datetime.now()
 
+start_time = datetime.datetime.now()
 # Process one sample at a time
-with tf.device('/CPU:0'):
+with tf.device('/GPU:0'):
     for i in tqdm(range(Number_of_samples), desc="NN single forward", dynamic_ncols=True):
-        M_single = M_test_log10[i:i+1, :]
-        D_pred_single = model(M_single, training=False).numpy()
+        M_single_log10 = np.log10(M_test_comparison[i:i+1, :])
+        D_pred_single = model(M_single_log10, training=False).numpy()
         D_pred_single = 10**D_pred_single
 
 end_time = datetime.datetime.now()
@@ -177,6 +172,7 @@ print(f"  Estimated for 2M samples: {time_taken_nn.total_seconds() * 2000000 / N
 # ============================================================================
 # TEST 2: GA-AEM ONE-AT-A-TIME
 # ============================================================================
+
 
 print("\n" + "="*70)
 print("TEST 2: GA-AEM ONE-AT-A-TIME")
