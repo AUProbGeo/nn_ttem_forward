@@ -39,7 +39,7 @@ if not os.path.exists(model_path):
     raise FileNotFoundError(f"Model not found: {model_path}")
 
 # Test parameters
-Number_of_samples = 1000  # Number of samples to test
+Number_of_samples = 100_000  # Number of samples to test
 #parallel = ig.use_parallel(showInfo=1) can be toggled on/off to test if parallelization can be used
 
 #%%
@@ -54,15 +54,22 @@ def forward_gaaem_single(M_single, file_gex, f_prior_reference_h5,
     Matches the behavior of prior_data_gaaem() for single-sample predictions.
     """
     
-    # Load Nhank and Nfreq from reference file if not provided
+    # Load Nhank and Nfreq from reference file if not provided, then cache them.
     if Nhank is None or Nfreq is None:
-        with h5py.File(f_prior_reference_h5, 'r') as f:
-            if 'D1' in f and 'Nhank' in f['D1'].attrs:
-                Nhank = f['D1'].attrs['Nhank']
-                Nfreq = f['D1'].attrs['Nfreq']    
-            else:
-                Nhank = 280
-                Nfreq = 12
+        if hasattr(forward_gaaem_single, 'Nhank') and hasattr(forward_gaaem_single, 'Nfreq'):
+            Nhank = forward_gaaem_single.Nhank
+            Nfreq = forward_gaaem_single.Nfreq
+        else:
+            with h5py.File(f_prior_reference_h5, 'r') as f:
+                if 'D1' in f and 'Nhank' in f['D1'].attrs:
+                    Nhank = f['D1'].attrs['Nhank']
+                    Nfreq = f['D1'].attrs['Nfreq']    
+                else:
+                    Nhank = 280
+                    Nfreq = 12
+
+            forward_gaaem_single.Nhank = Nhank
+            forward_gaaem_single.Nfreq = Nfreq
                 
     
     # Load depth/thickness information (cached after first call)
@@ -101,7 +108,8 @@ def forward_gaaem_single(M_single, file_gex, f_prior_reference_h5,
         Nhank=Nhank, 
         Nfreq=Nfreq, 
         parallel=False,  # It seem to be slighly faster to run with False for single forward runs, but you can test with True if you want.
-        showInfo=showInfo
+        showInfo=-1,
+        
     )
     
     # Return as 1D array
@@ -188,7 +196,9 @@ start_time = datetime.datetime.now()
 
 # Process ONE sample at a time
 for i in tqdm(range(Number_of_samples), desc="GA-AEM single forward", dynamic_ncols=True):
+    
     D_single = forward_gaaem_single(M_test_comparison[i], file_gex, f_prior_data_general_h5)
+    
 
 end_time = datetime.datetime.now()
 
