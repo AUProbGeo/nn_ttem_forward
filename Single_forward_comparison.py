@@ -41,7 +41,13 @@ if not os.path.exists(model_path):
 # Test parameters
 Number_of_samples = 100_000  # Number of samples to test
 #parallel = ig.use_parallel(showInfo=1) can be toggled on/off to test if parallelization can be used
-
+#Check if GPU is available for TensorFlow
+if tf.config.list_physical_devices('GPU'):
+    print("GPU detected. TensorFlow will use the GPU for NN.")
+    GPU_available = True
+else:
+    print("No GPU detected. TensorFlow will use the CPU for NN.")
+    GPU_available = False
 #%%
 # ============================================================================
 # HELPER FUNCTION: GA-AEM SINGLE FORWARD
@@ -160,7 +166,13 @@ print(f"Starting NN timing test with {Number_of_samples} samples...")
 
 start_time = datetime.datetime.now()
 # Process one sample at a time
-with tf.device('/GPU:0'):
+if GPU_available:
+    with tf.device('/GPU:0'):
+            for i in tqdm(range(Number_of_samples), desc="NN single forward", dynamic_ncols=True):
+                M_single_log10 = np.log10(M_test_comparison[i:i+1, :])
+                D_pred_single = model(M_single_log10, training=False).numpy()
+                D_pred_single = 10**D_pred_single
+else:
     for i in tqdm(range(Number_of_samples), desc="NN single forward", dynamic_ncols=True):
         M_single_log10 = np.log10(M_test_comparison[i:i+1, :])
         D_pred_single = model(M_single_log10, training=False).numpy()
