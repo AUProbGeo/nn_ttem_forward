@@ -15,6 +15,11 @@
 # Set N_use and N_inv to 2_000_000 for the full-scale results reported in the paper.
 # The default values of 50_000 are provided for quick testing.
 
+
+# %% 
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force TensorFlow to use CPU
+
 # %% Imports
 import gc
 import datetime
@@ -27,7 +32,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib
 
 import numpy as np
 import matplotlib.pyplot as plt
-import h5py
+plt.ion()
 import pandas as pd
 import tensorflow as tf
 
@@ -46,6 +51,16 @@ parallel = ig.use_parallel(showInfo=1)
 
 hardcopy = True
 
+
+
+# %% Add a check to determine if GPU is used with tensorflow
+print("TensorFlow version:", tf.__version__)
+if tf.config.list_physical_devices("GPU"):
+    print("GPU is available. TensorFlow will use the GPU for computations.")
+else:
+    print("GPU is not available. TensorFlow will use the CPU for computations.")
+
+
 # %% [markdown]
 # ## Configuration
 #
@@ -54,10 +69,11 @@ hardcopy = True
 # To run a quick test, reduce all values to e.g. `50_000`.
 
 # %%
-N_prior = 2_000_000  # Reals to generate when building a general prior (A1)
-N_use = 2_000_000  # Reals loaded from the general prior for training (B)
-N_inv = 2_000_000  # Reals loaded from the Informed Daugaard prior (B)
-N_reject = 2_000_000  # Reals used by the extended rejection sampler (D)
+N = 2_000_000  # Number of realizations to use for training and evaluation (B)
+N_prior = N  # Reals to generate when building a general prior (A1)
+N_use = N  # Reals loaded from the general prior for training (B)
+N_inv = N  # Reals loaded from the Informed Daugaard prior (B)
+N_reject = N  # Reals used by the extended rejection sampler (D)
 
 # N_prior  = 50_000  # Reals to generate when building a general prior (A1)
 # N_use    = 50_000  # Reals loaded from the general prior for training (B)
@@ -69,6 +85,17 @@ use_pretrained_model = False  # Set to True to load a pre-trained General NN and
 use_precomputed_prior = True  # Set to True to load a pre-computed general prior and
 # skip sampling and forward computation (Section A1)
 
+# %% Testing. Optionally select a small number of realizations for a quick test run. Set to False to run the full workflow with the values above.
+useTest=False
+if useTest:
+    N = 2_000_000  # Number of realizations to use for training and evaluation (B)
+    N_prior = N
+    N_use = N
+    N_inv = N
+    N_reject = N
+    use_pretrained_model = False
+    use_precomputed_prior = False
+    
 # %% [markdown]
 # ---
 # ## Stage A: Generating the general prior and training the General NN
@@ -160,21 +187,34 @@ if len(f_prior_data_general_h5) == 0 or not use_precomputed_prior:
         RHO_max=RHO_max,
         showInfo=1,
     )
-    t1 = time.time()
+    t_prior = time.time()-t0
     print(
-        f"Prior sampling: {N_prior} realizations in {t1 - t0:.2f} s ({N_prior / (t1 - t0):.0f} realizations/s)"
+        f"Prior sampling: {N_prior} realizations in {t_prior - t0:.2f} s ({N_prior / (t_prior):.0f} realizations/s)"
     )
 
     # Compute tTEM forward responses using the GA-AEM solver
-    time_start = time.time()
+    t0 = time.time()
     f_prior_data_general_h5 = ig.prior_data_gaaem(
         f_prior_general_h5, file_gex, parallel=parallel, showInfo=0
     )
-    time_end = time.time()
+    t_forward = time.time()-t0
     print(
-        f"Time to compute forward responses for the general prior: {time_end - time_start:.2f} s"
+        f"Time to compute forward responses for the general prior: {t_forward:.2f} s"
     )
-    print(f"Forward responses per second: {N_prior / (time_end - time_start):.2f}")
+    print(f"Forward responses per second: {N_prior / (t_forward):.2f}")
+
+    # ############################
+    print("##################### ##################### #####################")
+    print("  N_prior = %d" % N_prior)
+    print("  prior sampling = %.2f s" % t_prior)
+    print("  forward responses = %.2f s" % t_forward)
+    print("  Total time = %.2f s" % (t_prior + t_forward))
+    print("# # # # #")
+    print("  Prior realizations per second: % .2f /s" % (N_prior / (t_prior)))
+    print("  Forward responses per second: % .2f /s" % (N_prior / (t_forward)))
+    print( "  Total realizations per second: % .2f /s" % (N_prior / (t_prior + t_forward)) )
+    print("##################### ##################### #####################")
+
 
 print("General prior file: %s" % f_prior_data_general_h5)
 
@@ -276,7 +316,8 @@ else:
         use_early_stopping,
         patience_value,
     )
-    print(f"Training: {time.time() - t0:.1f} s")
+    t_train = time.time() - t0
+    print("Training: % .2f s" % t_train)
 
     # Retrieve the best validation loss achieved during training
     best_val_loss = results["val_loss"]
@@ -309,10 +350,10 @@ metrics_from_model = analyze_errors(
 # This prior was not used during training and serves as the key generalisation test.
 t0 = time.time()
 D_pred_detailed = model.predict(M_test_detailed, batch_size=100000, verbose=1)
-t1 = time.time()
+t_pred = time.time()-t0
 print(
-    f"NN prediction: {M_test_detailed.shape[0]} forward evals in {t1 - t0:.2f} s "
-    f"({M_test_detailed.shape[0] / (t1 - t0):.0f} evals/s)"
+    f"NN prediction: {M_test_detailed.shape[0]} forward evals in {t_pred:.2f} s "
+    f"({M_test_detailed.shape[0] / (t_pred):.0f} evals/s)"
 )
 metrics_on_informed_prior = analyze_errors(
     D_test_detailed,
@@ -324,6 +365,85 @@ metrics_on_informed_prior = analyze_errors(
     title=None,
     make_pdf=False,
 )
+
+# %% Print some timing results for reference
+import os
+import platform
+import psutil
+
+# Print to screen som information and the system, CPU, memory, and GPU info if available
+print("##################### ##################### #####################")
+print("##################### SYSTEM INFO          #####################")
+print("  OS       : %s %s" % (platform.system(), platform.release()))
+print("  Python   : %s" % platform.python_version())
+print("  CPU      : %s" % platform.processor())
+print("  CPU cores: %d physical / %d logical" % (psutil.cpu_count(logical=False), psutil.cpu_count(logical=True)))
+mem = psutil.virtual_memory()
+print("  RAM      : %.1f GB total / %.1f GB available" % (mem.total / 1e9, mem.available / 1e9))
+try:
+    import tensorflow as tf
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        for i, gpu in enumerate(gpus):
+            details = tf.config.experimental.get_device_details(gpu)
+            name = details.get('device_name', gpu.name)
+            print("  GPU[%d]   : %s" % (i, name))
+    else:
+        print("  GPU      : none (no CUDA GPU detected by TensorFlow)")
+except ImportError:
+    print("  GPU      : tensorflow not available")
+print("##################### ##################### #####################")
+
+
+try:
+    # ############################
+    print("##################### ##################### #####################")
+    print("##################### SETUP                #####################")
+    print("  N_prior = %d" % N_prior)
+    print("  prior sampling = %.2f s" % t_prior)
+    print("  forward responses = %.2f s" % t_forward)
+    print("  Total time = %.2f s" % (t_prior + t_forward))
+    print("# # # # #")
+    print("  Prior realizations per second: % .2f /s" % (N_prior / (t_prior)))
+    print("  Forward responses per second: % .2f /s" % (N_prior / (t_forward)))
+    print( "  Total realizations per second: % .2f /s" % (N_prior / (t_prior + t_forward)) )
+    print("##################### ##################### #####################")
+except:
+    pass
+
+try:
+    # ############################
+    print("##################### ##################### #####################")
+    print("##################### NN train/predict      #####################")
+    print("  N_use = %d" % N_use)
+    print("  train time = %.2f s" % t_train)
+    print("  N_test = %d" % M_test_detailed.shape[0])
+    print("  prediction time = %.2f s" % t_pred)
+    print("  Total time = %.2f s" % (t_train + t_pred))
+    print("# # # # #")
+    print("  Training realizations per second: % .2f /s" % (N_use / (t_train)))
+    print("  Prediction evals per second: % .2f /s" % (M_test_detailed.shape[0] / (t_pred)))
+    print( "  Total realizations per second: % .2f /s" % (N_use / (t_train + t_pred)) )
+    print("##################### ##################### #####################")
+except:
+    pass
+
+try:
+    # ############################
+    print("##################### ##################### #####################")
+    print("##################### Speedup               #####################")
+    print("  GA-AEM forward responses for %d realizations: %.2f s" % (N_use, t_forward))
+    print("  General NN predictions for %d realizations: %.2f s" % (M_test_detailed.shape[0], t_pred))
+    speedup = t_forward / t_pred
+    print("  Speedup: %.0f times faster than GA-AEM" % speedup)
+    print("##################### ##################### #####################")
+except:
+    pass
+
+
+# %% 
+import sys
+sys.exit(0)
 
 # %% [markdown]
 # ---
