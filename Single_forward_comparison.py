@@ -6,10 +6,12 @@
 #You should be able to run the whole script without problem. 
 
 #%% load modules
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force TensorFlow to use CPU
+
 import numpy as np
 import h5py
 import datetime
-import os
 import tensorflow as tf
 from tqdm.auto import tqdm
 import integrate as ig
@@ -40,6 +42,7 @@ if not os.path.exists(model_path):
 
 # Test parameters
 Number_of_samples = 100_000  # Number of samples to test
+Number_of_samples = 5_000  # Number of samples to test
 #parallel = ig.use_parallel(showInfo=1) can be toggled on/off to test if parallelization can be used
 #Check if GPU is available for TensorFlow
 if tf.config.list_physical_devices('GPU'):
@@ -49,79 +52,6 @@ else:
     print("No GPU detected. TensorFlow will use the CPU for NN.")
     GPU_available = False
 #%%
-# ============================================================================
-# HELPER FUNCTION: GA-AEM SINGLE FORWARD
-# ============================================================================
-
-def forward_gaaem_single(M_single, file_gex, f_prior_reference_h5, 
-                         Nhank=None, Nfreq=None, showInfo=0):
-    """
-    Generate GA-AEM forward data for a SINGLE model.
-    Matches the behavior of prior_data_gaaem() for single-sample predictions.
-    """
-    
-    # Load Nhank and Nfreq from reference file if not provided, then cache them.
-    if Nhank is None or Nfreq is None:
-        if hasattr(forward_gaaem_single, 'Nhank') and hasattr(forward_gaaem_single, 'Nfreq'):
-            Nhank = forward_gaaem_single.Nhank
-            Nfreq = forward_gaaem_single.Nfreq
-        else:
-            with h5py.File(f_prior_reference_h5, 'r') as f:
-                if 'D1' in f and 'Nhank' in f['D1'].attrs:
-                    Nhank = f['D1'].attrs['Nhank']
-                    Nfreq = f['D1'].attrs['Nfreq']    
-                else:
-                    Nhank = 280
-                    Nfreq = 12
-
-            forward_gaaem_single.Nhank = Nhank
-            forward_gaaem_single.Nfreq = Nfreq
-                
-    
-    # Load depth/thickness information (cached after first call)
-    if not hasattr(forward_gaaem_single, 'thickness'):
-        with h5py.File(f_prior_reference_h5, 'r') as f:
-            # Get depth - EXACTLY like prior_data_gaaem
-            if 'x' in f['M1'].attrs:
-                z = f['M1'].attrs['x']
-            else:
-                z = f['M1'].attrs['z']
-            
-            # Calculate thickness from depth - EXACTLY like prior_data_gaaem
-            forward_gaaem_single.thickness = np.diff(z)
-    
-    thickness = forward_gaaem_single.thickness
-    
-    # Ensure M_single is 2D array (1, n_layers)
-    if M_single.ndim == 1:
-        M_single = M_single.reshape(1, -1)
-    
-    # Convert resistivity to conductivity - EXACTLY like prior_data_gaaem
-    C_single = 1 / M_single
-    
-    # Generate STM files once and cache
-    if not hasattr(forward_gaaem_single, 'stmfiles'):
-        forward_gaaem_single.stmfiles, _ = ig.gex_to_stm(
-            file_gex, Nhank=Nhank, Nfreq=Nfreq, showInfo=showInfo
-        )
-    
-    # Run GA-AEM forward modeling - EXACTLY like prior_data_gaaem
-    D_single = ig.forward_gaaem(
-        C=C_single, 
-        thickness=thickness,
-        file_gex=file_gex,
-        stmfiles=forward_gaaem_single.stmfiles,
-        Nhank=Nhank, 
-        Nfreq=Nfreq, 
-        parallel=False,  # It seem to be slighly faster to run with False for single forward runs, but you can test with True if you want.
-        showInfo=-1,
-        
-    )
-    
-    # Return as 1D array
-    return D_single.flatten()
-
-
 # ============================================================================
 # LOAD DATA AND MODELS
 # ============================================================================
@@ -139,6 +69,17 @@ print(f"Loading {Number_of_samples} test samples from {f_prior_data_general_h5}.
 with h5py.File(f_prior_data_general_h5, 'r') as f:
     M_test_comparison = f['M1'][0:Number_of_samples, :]  # Linear space
     print(f"M_test shape: {M_test_comparison.shape}")
+    if 'D1' in f and 'Nhank' in f['D1'].attrs:
+        Nhank = f['D1'].attrs['Nhank']
+        Nfreq = f['D1'].attrs['Nfreq']
+    else:
+        Nhank = 280
+        Nfreq = 12
+    z = f['M1'].attrs['x'] if 'x' in f['M1'].attrs else f['M1'].attrs['z']
+    thickness = np.diff(z)
+
+print("Generating STM files...")
+stmfiles, _ = ig.gex_to_stm(file_gex, Nhank=Nhank, Nfreq=Nfreq, showInfo=0)
 
 # Load Neural Network model
 print(f"Loading NN model from {model_path}...")
@@ -166,17 +107,10 @@ print(f"Starting NN timing test with {Number_of_samples} samples...")
 
 start_time = datetime.datetime.now()
 # Process one sample at a time
-if GPU_available:
-    with tf.device('/GPU:0'):
-            for i in tqdm(range(Number_of_samples), desc="NN single forward", dynamic_ncols=True):
-                M_single_log10 = np.log10(M_test_comparison[i:i+1, :])
-                D_pred_single = model(M_single_log10, training=False).numpy()
-                D_pred_single = 10**D_pred_single
-else:
-    for i in tqdm(range(Number_of_samples), desc="NN single forward", dynamic_ncols=True):
-        M_single_log10 = np.log10(M_test_comparison[i:i+1, :])
-        D_pred_single = model(M_single_log10, training=False).numpy()
-        D_pred_single = 10**D_pred_single
+for i in tqdm(range(Number_of_samples), desc="NN single forward", dynamic_ncols=True):
+    M_single_log10 = np.log10(M_test_comparison[i:i+1, :])
+    D_pred_single = model(M_single_log10, training=False).numpy()
+    D_pred_single = 10**D_pred_single
 
 end_time = datetime.datetime.now()
 
@@ -201,15 +135,18 @@ print("="*70)
 # Warm-up run - 10 samples one-at-a-time
 print("Warm-up (10 samples)...")
 for i in tqdm(range(10), desc="GA-AEM warm-up", leave=False, dynamic_ncols=True):
-    _ = forward_gaaem_single(M_test_comparison[i], file_gex, f_prior_data_general_h5)
+    _ = ig.forward_gaaem(C=1/M_test_comparison[i:i+1, :], thickness=thickness,
+                         file_gex=file_gex, stmfiles=stmfiles,
+                         Nhank=Nhank, Nfreq=Nfreq, parallel=False, showInfo=-1)
 
 print(f"Starting GA-AEM timing test with {Number_of_samples} samples...")
 start_time = datetime.datetime.now()
 
 # Process ONE sample at a time
 for i in tqdm(range(Number_of_samples), desc="GA-AEM single forward", dynamic_ncols=True):
-    
-    D_single = forward_gaaem_single(M_test_comparison[i], file_gex, f_prior_data_general_h5)
+    D_single = ig.forward_gaaem(C=1/M_test_comparison[i:i+1, :], thickness=thickness,
+                                file_gex=file_gex, stmfiles=stmfiles,
+                                Nhank=Nhank, Nfreq=Nfreq, parallel=False, showInfo=-1)
     
 
 end_time = datetime.datetime.now()
@@ -230,7 +167,7 @@ print(f"  Estimated for 2M samples: {time_taken_gaaem.total_seconds() * 2000000 
 print("\n" + "="*70)
 print("PERFORMANCE COMPARISON")
 print("="*70)
-print(f"Neural Network: {avg_time_nn:.2f} ms per sample")
+print(f"Neural Network: {avg_time_nn:.2f} ms per sample. GPU={'Yes' if GPU_available else 'No'}")
 print(f"GA-AEM:         {avg_time_gaaem:.2f} ms per sample")
 print(f"\nSpeedup: {avg_time_gaaem / avg_time_nn:.1f}x faster with Neural Network")
 print(f"\nFor 2 million samples (Metropolis MCMC):")
