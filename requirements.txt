@@ -3,5 +3,6 @@ matplotlib
 h5py
 pandas
 tensorflow
+tensorboard
 integrate-module
 setuptools<81
