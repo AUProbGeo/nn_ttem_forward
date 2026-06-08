@@ -14,20 +14,20 @@
 #
 # The script is designed to run cell-by-cell in VS Code or Spyder.
 # Set N_use and N_inv to 2_000_000 for the full-scale results reported in the paper.
-# The default values of 50_000 are provided for quick testing.
 
 
-# %% 
+# %%
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force TensorFlow to use CPU
+#os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force TensorFlow to use CPU
 
 # %% Imports
 import gc
 import datetime
 import os
+import platform
+import psutil
 import sys
 import time
-from unittest import skip
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
 
@@ -52,8 +52,6 @@ parallel = ig.use_parallel(showInfo=1)
 
 hardcopy = True
 
-
-
 # %% Add a check to determine if GPU is used with tensorflow
 print("TensorFlow version:", tf.__version__)
 if tf.config.list_physical_devices("GPU"):
@@ -70,33 +68,26 @@ else:
 # To run a quick test, reduce all values to e.g. `50_000`.
 
 # %%
+
+use_precomputed_prior = True  # Set to True to load a pre-computed general prior and
+# skip sampling and forward computation (Section A1)
+use_pretrained_model = False  # Set to True to load a pre-trained General NN and
+# skip training (Section C1)
+
 N = 2_000_000  # Number of realizations to use for training and evaluation (B)
+
+useTest=False
+if useTest:
+    # Testing. Optionally select a small number of realizations for a quick test run. Set to False to run the full workflow with the values above.
+    N = 200_000  # Number of realizations to use for training and evaluation (B)
+    use_pretrained_model = False
+    use_precomputed_prior = False
+
 N_prior = N  # Reals to generate when building a general prior (A1)
 N_use = N  # Reals loaded from the general prior for training (B)
 N_inv = N  # Reals loaded from the Informed Daugaard prior (B)
 N_reject = N  # Reals used by the extended rejection sampler (D)
 
-# N_prior  = 50_000  # Reals to generatSe when building a general prior (A1)
-# N_use    = 50_000  # Reals loaded from the general prior for training (B)
-# N_inv    = 50_000  # Reals loaded from the Informed Daugaard prior (B)
-# N_reject = 50_000  # Reals used by the extended rejection sampler (D)
-
-use_pretrained_model = False  # Set to True to load a pre-trained General NN and
-# skip training (Section C1)
-use_precomputed_prior = True  # Set to True to load a pre-computed general prior and
-# skip sampling and forward computation (Section A1)
-
-# %% Testing. Optionally select a small number of realizations for a quick test run. Set to False to run the full workflow with the values above.
-useTest=False
-if useTest:
-    N = 2_000_000  # Number of realizations to use for training and evaluation (B)
-    N_prior = N
-    N_use = N
-    N_inv = N
-    N_reject = N
-    use_pretrained_model = False
-    use_precomputed_prior = False
-    
 # %% [markdown]
 # ---
 # ## Stage A: Generating the general prior and training the General NN
@@ -119,7 +110,7 @@ if useTest:
 
 # %% Get the data files for the selected case
 print("Loading data from Daugaard case...")
-showInfo = -1
+showInfo = 1
 files = ig.get_case_data(case="DAUGAARD", showInfo=showInfo)
 f_data_h5 = files[0]
 file_gex = ig.get_gex_file_from_data(f_data_h5)
@@ -128,19 +119,19 @@ file_gex = ig.get_gex_file_from_data(f_data_h5)
 f_prior_data_general_h5 = ig.get_case_data(
     case="DAUGAARD",
     filelist=[
-        "PRIOR_UNIFORM_NL_1-9_log-uniform_N2000000_TX07_20231016_2x4_RC20-33_Nh280_Nf12.h5"
+        "nn_ttem_forward/PRIOR_UNIFORM_NL_1-9_log-uniform_N2000000_TX07_20231016_2x4_RC20-33_Nh280_Nf12.h5"
     ],
     showInfo=showInfo,
 )[0]
 # Informed Daugaard prior: geologically informed prior — used to evaluate generalisation
 f_prior_data_valley_h5 = ig.get_case_data(
     case="DAUGAARD",
-    filelist=["daugaard_valley_prior_N2000000.h5"],
+    filelist=["nn_ttem_forward/daugaard_valley_prior_N2000000.h5"],
     showInfo=showInfo,
 )[0]
 f_prior_data_standard_h5 = ig.get_case_data(
     case="DAUGAARD",
-    filelist=["daugaard_standard_prior_N2000000.h5"],
+    filelist=["nn_ttem_forward/daugaard_standard_prior_N2000000.h5"],
     showInfo=showInfo,
 )[0]
 
@@ -371,10 +362,6 @@ metrics_on_informed_prior = analyze_errors(
 )
 
 # %% Print some timing results for reference
-import os
-import platform
-import psutil
-
 # Print to screen som information and the system, CPU, memory, and GPU info if available
 print("##################### ##################### #####################")
 print("##################### SYSTEM INFO          #####################")
@@ -446,8 +433,8 @@ except:
 
 
 # %% 
-import sys
-sys.exit(0)
+#import sys
+#sys.exit(0)
 
 # %% [markdown]
 # ---
@@ -522,8 +509,9 @@ if use_warmup:
 
 for i in range(number_of_times_to_predict):
     if i > 0:
-        tf.keras.backend.clear_session()
-        gc.collect()
+        #tf.keras.backend.clear_session()
+        #gc.collect()
+        pass
 
     start_time = datetime.datetime.now()
     D_pred_timed = model.predict(M_test_detailed, batch_size=100000, verbose=1)
