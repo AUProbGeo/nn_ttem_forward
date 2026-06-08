@@ -13,12 +13,11 @@
 #
 # The script is designed to run cell-by-cell in VS Code or Spyder.
 # Set N_use and N_inv to 2_000_000 for the full-scale results reported in the paper.
-# The default values of 50_000 are provided for quick testing.
 
 
 # %%
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force TensorFlow to use CPU
+#os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force TensorFlow to use CPU
 
 # %% Imports
 import gc
@@ -76,7 +75,7 @@ use_pretrained_model = False  # Set to True to load a pre-trained General NN and
 
 N = 2_000_000  # Number of realizations to use for training and evaluation (B)
 
-useTest=True
+useTest=False
 if useTest:
     # Testing. Optionally select a small number of realizations for a quick test run. Set to False to run the full workflow with the values above.
     N = 200_000  # Number of realizations to use for training and evaluation (B)
