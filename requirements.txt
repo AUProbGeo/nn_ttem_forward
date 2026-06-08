@@ -6,3 +6,6 @@ tensorflow
 tensorboard
 integrate-module
 setuptools<81
+ipykernel
+tqdm
+psutil
