@@ -17,7 +17,8 @@
 
 
 # %%
-#os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force TensorFlow to use CPU
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force TensorFlow to use CPU
 
 # %% Imports
 import gc
@@ -51,8 +52,6 @@ parallel = ig.use_parallel(showInfo=1)
 
 hardcopy = True
 
-
-
 # %% Add a check to determine if GPU is used with tensorflow
 print("TensorFlow version:", tf.__version__)
 if tf.config.list_physical_devices("GPU"):
@@ -80,7 +79,7 @@ N = 2_000_000  # Number of realizations to use for training and evaluation (B)
 useTest=True
 if useTest:
     # Testing. Optionally select a small number of realizations for a quick test run. Set to False to run the full workflow with the values above.
-    N = 20_000  # Number of realizations to use for training and evaluation (B)
+    N = 200_000  # Number of realizations to use for training and evaluation (B)
     use_pretrained_model = False
     use_precomputed_prior = False
 
