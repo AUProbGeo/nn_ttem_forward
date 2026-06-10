@@ -517,16 +517,16 @@ print(table)
 # This is corresponding to a speedup of approximately 1500-2200 times faster than the GA-AEM solver. 
 
 # %%
-use_warmup = True  # Perform a warm-up pass to initialise the GPU before timing
+#use_warmup = False  # Perform a warm-up pass to initialise the GPU before timing
 number_of_times_to_predict = 5  # Number of timed repetitions, could increase to get more stable timing results
 
 forward_data_time_results = []
 
-if use_warmup:
-    print("Warming up...")
-    _ = model.predict(M_test_detailed[:1000], batch_size=100000, verbose=0)
-    del _
-    print("Warm-up complete. Starting timed predictions.")
+#if use_warmup:
+    #print("Warming up...")
+    #_ = model.predict(M_test_detailed[:1000], batch_size=100000, verbose=0)
+   # del _
+    #print("Warm-up complete. Starting timed predictions.")
 
 #Get unscaled models M, M_test_detailed is already scaled, so we unscale it:
 M_test_detailed_unscaled=10**M_test_detailed
@@ -559,15 +559,15 @@ for i in range(number_of_times_to_predict):
     forward_data_time_results.append(time_taken)
     del D_pred_timed
     del M_test_detailed_scaled
-    del M_test_detailed_unscaled
+   
     gc.collect()
 
     #Added a small cooldown time between repetitions to allow GPU to cool down.
-    cooldown_time = 10  # seconds to wait between repetitions to allow GPU to cool down
+    cooldown_time = 10  # seconds to wait between repetitions to allow computer to cool down
     if i < number_of_times_to_predict - 1:
         print(f"Waiting {cooldown_time} seconds before next repetition to allow GPU to cool down...")
         time.sleep(cooldown_time)
-    
+del M_test_detailed_unscaled    
 
 print(f"\nAverage time: {np.mean(forward_data_time_results):.2f} s")
 print(f"Fastest:      {np.min(forward_data_time_results):.2f} s")
