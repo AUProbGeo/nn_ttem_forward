@@ -18,7 +18,7 @@
 
 # %%
 import os
-#os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force TensorFlow to use CPU
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force TensorFlow to use CPU
 
 # %% Imports
 import gc
@@ -137,8 +137,8 @@ f_prior_data_standard_h5 = ig.get_case_data(
 )[0]
 
 # Select which prior to use for evaluation of the General NN generalisation performance
-f_prior_data_h5 = "daugaard_valley_prior_N2000000.h5"
-#f_prior_data_h5 = "daugaard_standard_prior_N2000000.h5"
+#f_prior_data_h5 = "daugaard_valley_prior_N2000000.h5"
+f_prior_data_h5 = "daugaard_standard_prior_N2000000.h5"
 
 print("Observed data file: %s" % f_data_h5)
 print("GEX file: %s" % file_gex)
@@ -344,13 +344,30 @@ metrics_from_model = analyze_errors(
 # %%
 # Accuracy on the Informed Daugaard prior (out-of-distribution)
 # This prior was not used during training and serves as the key generalisation test.
+
+# Get unscaled models M of M_test_detailed, so the scaling can be part of the bench mark
+M_test_detailed_unscaled=10**M_test_detailed
+
 t0 = time.time()
-D_pred_detailed = model.predict(M_test_detailed, batch_size=100000, verbose=1)
+#Scale unscaled M back to log space, and make predictions
+M_test_detailed_scaled=np.log10(M_test_detailed_unscaled)
+D_pred_detailed = model.predict(M_test_detailed_scaled, batch_size=100000, verbose=1)
+# Transform predictions from log₁₀ space back to linear space
+D_pred_unscaled = 10**D_pred_detailed
+
 t_pred = time.time()-t0
 print(
     f"NN prediction: {M_test_detailed.shape[0]} forward evals in {t_pred:.2f} s "
     f"({M_test_detailed.shape[0] / (t_pred):.0f} evals/s)"
 )
+
+#% Delete large variables to free up memory
+del M_test_detailed_scaled
+del M_test_detailed_unscaled
+del D_pred_unscaled
+gc.collect()
+
+   
 #%%
 metrics_on_informed_prior = analyze_errors(
     D_test_detailed,
@@ -494,12 +511,14 @@ print(table)
 # stability, with an optional warm-up pass to initialise the GPU.
 #
 # For reference, computing forward responses for 2 million realizations with the GA-AEM
-# solver took 11.5 hours on the same laptop. The General NN reduces this to 1–3 seconds,
-# corresponding to a speedup of approximately 710–1 890 times.
+# solver took 70 minutes hours on the same laptop. The General NN reduces this to 1.8 seconds with GPU 
+#and 2.8 seconds with CPU on the same laptop. But the speedup will depend on the hardware used.
+
+# This is corresponding to a speedup of approximately 1500-2200 times faster than the GA-AEM solver. 
 
 # %%
 use_warmup = True  # Perform a warm-up pass to initialise the GPU before timing
-number_of_times_to_predict = 1  # Number of timed repetitions, could increase to get more stable timing results
+number_of_times_to_predict = 5  # Number of timed repetitions, could increase to get more stable timing results
 
 forward_data_time_results = []
 
@@ -514,11 +533,7 @@ M_test_detailed_unscaled=10**M_test_detailed
 
 for i in range(number_of_times_to_predict):
     if i > 0:
-        #tf.keras.backend.clear_session()
-        #gc.collect()
-        pass
-
-    
+        gc.collect()
 
     start_time = datetime.datetime.now()
 
@@ -544,6 +559,15 @@ for i in range(number_of_times_to_predict):
     forward_data_time_results.append(time_taken)
     del D_pred_timed
     del M_test_detailed_scaled
+    del M_test_detailed_unscaled
+    gc.collect()
+
+    #Added a small cooldown time between repetitions to allow GPU to cool down.
+    cooldown_time = 10  # seconds to wait between repetitions to allow GPU to cool down
+    if i < number_of_times_to_predict - 1:
+        print(f"Waiting {cooldown_time} seconds before next repetition to allow GPU to cool down...")
+        time.sleep(cooldown_time)
+    
 
 print(f"\nAverage time: {np.mean(forward_data_time_results):.2f} s")
 print(f"Fastest:      {np.min(forward_data_time_results):.2f} s")
