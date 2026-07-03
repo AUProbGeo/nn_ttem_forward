@@ -18,7 +18,7 @@
 
 # %%
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force TensorFlow to use CPU
+#os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force TensorFlow to use CPU
 
 # %% Imports
 import gc
@@ -75,6 +75,7 @@ use_pretrained_model = False  # Set to True to load a pre-trained General NN and
 # skip training (Section C1)
 
 N =2_000_000  # Number of realizations to use for training and evaluation (B)
+N =10_000  # Number of realizations to use for training and evaluation (B)
 
 useTest=False
 if useTest:
@@ -119,7 +120,7 @@ file_gex = ig.get_gex_file_from_data(f_data_h5)
 f_prior_data_general_h5 = ig.get_case_data(
     case="DAUGAARD",
     filelist=[
-        "PRIOR_UNIFORM_NL_1-9_log-uniform_N2000000_TX07_20231016_2x4_RC20-33_Nh280_Nf12.h5"
+        "nn_ttem_forward/PRIOR_UNIFORM_NL_1-9_log-uniform_N2000000_TX07_20231016_2x4_RC20-33_Nh280_Nf12.h5"
     ],
     showInfo=showInfo,
 )[0]
@@ -127,25 +128,29 @@ f_prior_data_general_h5 = ig.get_case_data(
 # Informed Daugaard prior: geologically informed prior — used to evaluate generalisation
 f_prior_data_valley_h5 = ig.get_case_data(
     case="DAUGAARD",
-    filelist=["PRIOR_DAUGAARD_VALLEY_N2000000.h5"],
+    filelist=["nn_ttem_forward/daugaard_valley_prior_N2000000.h5"],
     showInfo=showInfo,
 )[0]
 f_prior_data_standard_h5 = ig.get_case_data(
     case="DAUGAARD",
-    filelist=["PRIOR_DAUGAARD_STANDARD_N2000000.h5"],
+    filelist=["nn_ttem_forward/daugaard_standard_prior_N2000000.h5"],
     showInfo=showInfo,
 )[0]
 
 # Select which prior to use for evaluation of the General NN generalisation performance
 #f_prior_data_h5 = "daugaard_valley_prior_N2000000.h5"
-f_prior_data_h5 = "daugaard_standard_prior_N2000000.h5"
+#f_prior_data_h5 = "daugaard_standard_prior_N2000000.h5"
+#f_prior_data_h5 = f_prior_data_valley_h5  # Use the Daugaard valley prior for evaluation
+f_prior_data_h5 = f_prior_data_standard_h5  # Use the Daugaard standard prior for evaluation
+
+
 
 print("Observed data file: %s" % f_data_h5)
 print("GEX file: %s" % file_gex)
 print("General prior file: %s" % f_prior_data_general_h5)
 print("Informed Daugaard prior file: %s" % f_prior_data_h5)
 
-# %% [markdown]
+    # %% [markdown]
 # ### A1. Construct the general prior and compute tTEM forward responses
 #
 # Prior models **M*** are sampled from the general prior using `ig.prior_model_layered`.
@@ -213,6 +218,9 @@ if len(f_prior_data_general_h5) == 0 or not use_precomputed_prior:
 
 
 print("General prior file: %s" % f_prior_data_general_h5)
+
+
+
 
 # %% [markdown]
 # ### B. Load data for training and evaluation
