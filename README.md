@@ -2,11 +2,11 @@
 
 Companion code for:
 
-> Mehl, T., Madsen, R. B., & Hansen, T. M. (2024). *Accelerating tTEM forward modelling with a generalizable neural network to enable interactive probabilistic inversion – demonstrated in Daugaard, Denmark.* GEUS Bulletin.
+> Mehl, M. M., Madsen, R. B., & Hansen, T. M. (2026). *Accelerating tTEM forward modelling with a generalisable neural network to enable interactive probabilistic inversion – demonstrated in Daugaard, Denmark.* GEUS Bulletin.
 
 ## Overview
 
-This repository demonstrates how a neural network (the *General NN*) trained on a broad, geologically unconstrained prior generalises — without retraining — to site-specific informed priors. Applied to tTEM (towed transient electromagnetic) data from the Daugaard valley, Denmark, the General NN replaces the GA-AEM forward solver, reducing 2 million forward evaluations from ~11 hours to 1–3 seconds (~1900× speedup in batch mode).
+This repository demonstrates how a neural network (the *General NN*) trained on a broad, geologically unconstrained prior generalises — without retraining — to site-specific informed priors. Applied to tTEM (towed transient electromagnetic) data from the Daugaard valley, Denmark, the General NN replaces the GA-AEM forward solver, reducing 2 million forward evaluations from ~1 hour to 1–3 seconds (~1600-2500× speedup in batch mode).
 
 ## Quick start
 
@@ -58,6 +58,8 @@ and install TensorFlow with the CUDA extras instead:
 ```bash
 pip install "tensorflow[and-cuda]"
 ```
+
+If you use Windows native, and want GPU support, you must use tensorflow 2.10
 
 ## Pre-trained model
 
