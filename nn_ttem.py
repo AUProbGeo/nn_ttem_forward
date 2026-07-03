@@ -75,7 +75,6 @@ use_pretrained_model = False  # Set to True to load a pre-trained General NN and
 # skip training (Section C1)
 
 N =2_000_000  # Number of realizations to use for training and evaluation (B)
-N =10_000  # Number of realizations to use for training and evaluation (B)
 
 useTest=False
 if useTest:
