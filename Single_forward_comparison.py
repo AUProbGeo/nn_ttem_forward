@@ -7,7 +7,7 @@
 
 #%% load modules
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force TensorFlow to use CPU
+#os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force TensorFlow to use CPU
 
 import numpy as np
 import h5py
@@ -42,8 +42,7 @@ if not os.path.exists(model_path):
 
 # Test parameters
 Number_of_samples = 100_000  # Number of samples to test
-Number_of_samples = 5_000  # Number of samples to test
-#parallel = ig.use_parallel(showInfo=1) can be toggled on/off to test if parallelization can be used
+#Number_of_samples = 5_000  # Number of samples to test
 #Check if GPU is available for TensorFlow
 if tf.config.list_physical_devices('GPU'):
     print("GPU detected. TensorFlow will use the GPU for NN.")
@@ -51,6 +50,8 @@ if tf.config.list_physical_devices('GPU'):
 else:
     print("No GPU detected. TensorFlow will use the CPU for NN.")
     GPU_available = False
+NN_DEVICE = '/GPU:0' if GPU_available else '/CPU:0'
+print(f"NN device: {NN_DEVICE}")
 #%%
 # ============================================================================
 # LOAD DATA AND MODELS
@@ -85,42 +86,40 @@ stmfiles, _ = ig.gex_to_stm(file_gex, Nhank=Nhank, Nfreq=Nfreq, showInfo=0)
 print(f"Loading NN model from {model_path}...")
 model = tf.keras.models.load_model(model_path)
 print("NN model loaded successfully!")
-
 #%%
 # ============================================================================
 # TEST 1: NEURAL NETWORK ONE-AT-A-TIME
 # ============================================================================
 
-print("\n" + "="*70)
-print("TEST 1: NEURAL NETWORK ONE-AT-A-TIME")
-print("="*70)
+import time
+import datetime
+import numpy as np
+import tensorflow as tf
 
-#Warm up run, uses GPU
-print("Warm-up (10 samples)...")
-with tf.device('/GPU:0'):
-    for i in tqdm(range(10), desc="NN warm-up", leave=False, dynamic_ncols=True):
-        #Take the log10 of the model for the NN input
-        M_single_log10 = np.log10(M_test_comparison[i:i+1, :])
-        _ = model(M_single_log10, training=False)
+@tf.function
+def predict(x):
+    return model(x, training=False)
 
-print(f"Starting NN timing test with {Number_of_samples} samples...")
 
-start_time = datetime.datetime.now()
-# Process one sample at a time
-for i in tqdm(range(Number_of_samples), desc="NN single forward", dynamic_ncols=True):
-    M_single_log10 = np.log10(M_test_comparison[i:i+1, :])
-    D_pred_single = model(M_single_log10, training=False).numpy()
-    D_pred_single = 10**D_pred_single
+with tf.device(NN_DEVICE):
+    # Warm-up 
+    for i in range(10):
+        x = tf.constant(np.log10(M_test_comparison[i:i+1, :]), dtype=tf.float32)
+        predict(x).numpy()
 
-end_time = datetime.datetime.now()
+    t0 = datetime.datetime.now()
+    for i in range(Number_of_samples):
+        x = tf.constant(np.log10(M_test_comparison[i:i+1, :]), dtype=tf.float32)
+        D_nn = 10**predict(x).numpy()
+    time_taken_nn = datetime.datetime.now() - t0
 
-time_taken_nn = end_time - start_time
-avg_time_nn = time_taken_nn.total_seconds() / Number_of_samples * 1000
+total_s = time_taken_nn.total_seconds()
+avg_time_nn = total_s/Number_of_samples*1000
 
 print(f"\nNEURAL NETWORK RESULTS:")
-print(f"  Total time: {time_taken_nn.total_seconds():.2f} seconds")
-print(f"  Average per sample: {avg_time_nn:.2f} ms")
-print(f"  Estimated for 2M samples: {time_taken_nn.total_seconds() * 2000000 / Number_of_samples / 3600:.2f} hours")
+print(f"  Total time: {total_s:.2f} seconds")
+print(f"  Average per sample: {avg_time_nn:.3f} ms")
+print(f"  Estimated for 2M samples: {total_s * 2_000_000 / Number_of_samples / 3600:.2f} hours")
 
 #%%
 # ============================================================================
@@ -168,8 +167,8 @@ print("\n" + "="*70)
 print("PERFORMANCE COMPARISON")
 print("="*70)
 print(f"Neural Network: {avg_time_nn:.2f} ms per sample. GPU={'Yes' if GPU_available else 'No'}")
-print(f"GA-AEM:         {avg_time_gaaem:.2f} ms per sample")
-print(f"\nSpeedup: {avg_time_gaaem / avg_time_nn:.1f}x faster with Neural Network")
+print(f"GA-AEM:         {avg_time_gaaem:.3f} ms per sample")
+print(f"\nSpeedup: {avg_time_gaaem / avg_time_nn:.2f}x faster with Neural Network")
 print(f"\nFor 2 million samples (Metropolis MCMC):")
 print(f"  Neural Network: ~{time_taken_nn.total_seconds() * 2000000 / Number_of_samples / 3600:.2f} hours")
 print(f"  GA-AEM:         ~{time_taken_gaaem.total_seconds() * 2000000 / Number_of_samples / 3600:.2f} hours")
@@ -178,7 +177,7 @@ print("="*70)
 
 # Clean up
 del M_test_comparison
-del D_pred_single
+del D_nn
 del D_single
 
 print("\nTest complete!")
